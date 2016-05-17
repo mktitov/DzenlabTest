@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Dzenlab test</title>
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+    <script src="http://code.jquery.com/jquery-1.10.2.js"></script>
+    <script src="http://code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+    <script>
+        var users;
+        var ws;
+        var wsLog;
+        $(function() {
+            wsLog = $( "#message-log" )
+            $( "#tabs" ).tabs().addClass( "ui-tabs-vertical ui-helper-clearfix" );
+            $( "#tabs li" ).removeClass( "ui-corner-top" ).addClass( "ui-corner-left" );
+            $( "#create-test-users").button().click(function(event){
+                $.get('ui/create-test-users', null, function(){
+                    updateUsersTable();
+                })
+            })
+            $( "#refresh-users").button().click(function(){
+                updateUsersTable();
+            })
+            $( "#refresh-token-history" ).button().click(function(){
+                updateTokenHistoryTable();
+            })
+            $( "#connect-to-socket").button().click(function(){
+                ws = new WebSocket("ws://"+ window.location.host+"/FastenTest/customer-channel")
+                ws.onopen =  function() {
+                    wsLog.prepend("<p style='color:green'>Successfully connected!</p>")
+                }
+                ws.onmessage = function(message) {
+                    wsLog.prepend("<p style='color:darkblue'>Получено сообщение:</p><p>"+message.data+"</p>")
+                }
+                ws.onerror = function(event) {
+                    wsLog.prepend("<p style='color:red'>Ошибка подключения</p>")
+                }
+            })
+            $( "#message-template" ).selectmenu({
+                change: function(event, data) {
+                    switch(data.item.value) {
+                        case "LOGIN_CUSTOMER":
+                            $("#message").val('' +
+                                    '{"type":"LOGIN_CUSTOMER", "sequence_id":"123", "data": {\n' +
+                                    '  "email": "",\n' +
+                                    '  "password": ""\n' +
+                                    '}}')
+                            break;
+                        case "ECHO_REQUEST":
+                            $("#message").val('' +
+                                    '{"type":"ECHO_REQUEST", "sequence_id":"321", \n' +
+                                    '  "api_token": "", \n' +
+                                    '  "data": {\n' +
+                                    '    "message": "Some message"\n' +
+                                    '  }' +
+                                    '}')
+                            break;
+                    }
+                }
+            })
+            $( "#send-message" ).button().click(function(){
+                ws.send($("#message").val())
+//                alert($("#message").val())
+            })
+            updateUsersTable()
+        });
+        function updateUsersTable() {
+            $.get('ui/get-users', function(data){
+                users = data;
+                var tbody = $("#users-data")
+                tbody.empty()
+                data.forEach(function(user){
+                    tbody.append("<tr><td>"+user.id+"</td><td>"+user.email+"</td><td>"+user.pwd+"</td><td>"+(user.token||'')+"</td><td>"+(user.tokenExpirationDate||'')+"</td></tr>")
+                })
+            })
+        }
+        function updateTokenHistoryTable() {
+            $.get('ui/get-token-history', function(data){
+                users = data;
+                var tbody = $("#token-history-data")
+                tbody.empty()
+                data.forEach(function(t){
+                    tbody.append("<tr><td>"+t.id+"</td><td>"+t.userId+"</td><td>"+t.userEmail+"</td><td>"+t.token+"</td><td>"+t.tokenExpirationDate+"</td></tr>")
+                })
+            })
+        }
+    </script>
+    <style>
+        * {
+            font-size: 95%;
+        }
+        label.templateSelector {
+            display: block;
+        }
+        table {
+            margin-top: 10px;
+            /*border:1px;*/
+        }
+        .ui-tabs-vertical { width: 55em; }
+        .ui-tabs-vertical .ui-tabs-nav { padding: .2em .1em .2em .2em; float: left; width: 12em; }
+        .ui-tabs-vertical .ui-tabs-nav li { clear: left; width: 100%; border-bottom-width: 1px !important; border-right-width: 0 !important; margin: 0 -1px .2em 0; }
+        .ui-tabs-vertical .ui-tabs-nav li a { display:block; }
+        .ui-tabs-vertical .ui-tabs-nav li.ui-tabs-active { padding-bottom: 0; padding-right: .1em; border-right-width: 1px; }
+        .ui-tabs-vertical .ui-tabs-panel { padding: 1em; float: right; width: 40em;}
+    </style>
+</head>
+<body>
+
+<div id="tabs">
+    <ul>
+        <li><a href="#tabs-1">Пользователи</a></li>
+        <li><a href="#tabs-2">Сообщения</a></li>
+        <li><a href="#tabs-3">Аудит токенов</a></li>
+    </ul>
+    <div id="tabs-1">
+        <h2>Пользователи</h2>
+        <button id="create-test-users">Создать</button><button id="refresh-users">Обновить</button>
+        <div id="users-table">
+            <table class="ui-widget ui-widget-content">
+                <thead class="ui-widget-header">
+                <tr class="ui-widget-header">
+                    <th>id</th><th>Email</th><th>Пароль</th><th>Текущий API токен</th><th>Дата просрочки токена</th>
+                </tr>
+                </thead>
+                <tbody id="users-data">
+
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div id="tabs-2">
+        <h2>Проверка работы сообщений</h2>
+        <div style="margin-top: 10px;">
+            <label class="templateSelector" for="message-template">Шаблон сообщения</label>
+            <select name="message-template" id="message-template" style="width: 200px">
+                <option></option>
+                <option>LOGIN_CUSTOMER</option>
+                <option>ECHO_REQUEST</option>
+            </select>
+        </div>
+        <br>
+        <textarea id="message" rows="5" cols="50">
+        </textarea>
+        <br>
+        <button id="connect-to-socket">Подключиться к web-socket</button>
+        <button id="send-message">Отправить сообщение</button>
+        <div id="message-log">
+        </div>
+    </div>
+    <div id="tabs-3">
+        <h2>История использования токенов</h2>
+        <button id="refresh-token-history">Обновить</button>
+        <div id="token-history-table">
+            <table class="ui-widget ui-widget-content">
+                <thead class="ui-widget-header">
+                <tr class="ui-widget-header">
+                    <th>id</th><th>id Пользователя</th><th>Email пользоватея</th><th>Токен</th><th>Дата просрочки токена</th>
+                </tr>
+                </thead>
+                <tbody id="token-history-data">
+
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+
+</body>
+</html>
